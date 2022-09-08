@@ -1,0 +1,1373 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Test Report</title>
+    <link href="assets/style.css" rel="stylesheet" type="text/css"/></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) { // eslint-disable-line no-redeclare
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function findAll(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sortColumn(elem) {
+    toggleSortStates(elem);
+    const colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    let key;
+    if (elem.classList.contains('result')) {
+        key = keyResult;
+    } else if (elem.classList.contains('links')) {
+        key = keyLink;
+    } else {
+        key = keyAlpha;
+    }
+    sortTable(elem, key(colIndex));
+}
+
+function showAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(showExtras);
+}
+
+function hideAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(hideExtras);
+}
+
+function showExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.remove('collapsed');
+    expandcollapse.classList.remove('expander');
+    expandcollapse.classList.add('collapser');
+}
+
+function hideExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.add('collapsed');
+    expandcollapse.classList.remove('collapser');
+    expandcollapse.classList.add('expander');
+}
+
+function showFilters() {
+    const filterItems = document.getElementsByClassName('filter');
+    for (let i = 0; i < filterItems.length; i++)
+        filterItems[i].hidden = false;
+}
+
+function addCollapse() {
+    // Add links for show/hide all
+    const resulttable = find('table#results-table');
+    const showhideall = document.createElement('p');
+    showhideall.innerHTML = '<a href="javascript:showAllExtras()">Show all details</a> / ' +
+                            '<a href="javascript:hideAllExtras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    findAll('.col-result').forEach(function(elem) {
+        const collapsed = getQueryParameter('collapsed') || 'Passed';
+        const extras = elem.parentNode.nextElementSibling;
+        const expandcollapse = document.createElement('span');
+        if (extras.classList.contains('collapsed')) {
+            expandcollapse.classList.add('expander');
+        } else if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add('collapsed');
+            expandcollapse.classList.add('expander');
+        } else {
+            expandcollapse.classList.add('collapser');
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener('click', function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains('collapsed')) {
+                showExtras(event.currentTarget);
+            } else {
+                hideExtras(event.currentTarget);
+            }
+        });
+    });
+}
+
+function getQueryParameter(name) {
+    const match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () { // eslint-disable-line no-unused-vars
+    resetSortHeaders();
+
+    addCollapse();
+
+    showFilters();
+
+    sortColumn(find('.initial-sort'));
+
+    findAll('.sortable').forEach(function(elem) {
+        elem.addEventListener('click',
+            function() {
+                sortColumn(elem);
+            }, false);
+    });
+}
+
+function sortTable(clicked, keyFunc) {
+    const rows = findAll('.results-table-row');
+    const reversed = !clicked.classList.contains('asc');
+    const sortedRows = sort(rows, keyFunc, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    const thead = document.getElementById('results-table-head');
+    document.getElementById('results-table').remove();
+    const parent = document.createElement('table');
+    parent.id = 'results-table';
+    parent.appendChild(thead);
+    sortedRows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName('BODY')[0].appendChild(parent);
+}
+
+function sort(items, keyFunc, reversed) {
+    const sortArray = items.map(function(item, i) {
+        return [keyFunc(item), i];
+    });
+
+    sortArray.sort(function(a, b) {
+        const keyA = a[0];
+        const keyB = b[0];
+
+        if (keyA == keyB) return 0;
+
+        if (reversed) {
+            return keyA < keyB ? 1 : -1;
+        } else {
+            return keyA > keyB ? 1 : -1;
+        }
+    });
+
+    return sortArray.map(function(item) {
+        const index = item[1];
+        return items[index];
+    });
+}
+
+function keyAlpha(colIndex) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[colIndex].firstChild.data.toLowerCase();
+    };
+}
+
+function keyLink(colIndex) {
+    return function(elem) {
+        const dataCell = elem.childNodes[1].childNodes[colIndex].firstChild;
+        return dataCell == null ? '' : dataCell.innerText.toLowerCase();
+    };
+}
+
+function keyResult(colIndex) {
+    return function(elem) {
+        const strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+            'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[colIndex].firstChild.data);
+    };
+}
+
+function resetSortHeaders() {
+    findAll('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    findAll('.sortable').forEach(function(elem) {
+        const icon = document.createElement('div');
+        icon.className = 'sort-icon';
+        icon.textContent = 'vvv';
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove('desc', 'active');
+        elem.classList.add('asc', 'inactive');
+    });
+}
+
+function toggleSortStates(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        resetSortHeaders();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function isAllRowsHidden(value) {
+    return value.hidden == false;
+}
+
+function filterTable(elem) { // eslint-disable-line no-unused-vars
+    const outcomeAtt = 'data-test-result';
+    const outcome = elem.getAttribute(outcomeAtt);
+    const classOutcome = outcome + ' results-table-row';
+    const outcomeRows = document.getElementsByClassName(classOutcome);
+
+    for(let i = 0; i < outcomeRows.length; i++){
+        outcomeRows[i].hidden = !elem.checked;
+    }
+
+    const rows = findAll('.results-table-row').filter(isAllRowsHidden);
+    const allRowsHidden = rows.length == 0 ? true : false;
+    const notFoundMessage = document.getElementById('not-found-message');
+    notFoundMessage.hidden = !allRowsHidden;
+}
+</script>
+    <h1>api_report.html</h1>
+    <p>Report generated on 28-Jul-2022 at 10:34:28 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v3.1.1</p>
+    <h2>Environment</h2>
+    <table id="environment">
+      <tr>
+        <td>Packages</td>
+        <td>{"pluggy": "1.0.0", "py": "1.11.0", "pytest": "6.2.5"}</td></tr>
+      <tr>
+        <td>Platform</td>
+        <td>macOS-12.4-x86_64-i386-64bit</td></tr>
+      <tr>
+        <td>Plugins</td>
+        <td>{"dependency": "0.5.1", "html": "3.1.1", "metadata": "1.11.0"}</td></tr>
+      <tr>
+        <td>Python</td>
+        <td>3.10.0</td></tr></table>
+    <h2>Summary</h2>
+    <p>100 tests ran in 13.37 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="passed">100 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="failed">0 failed</span>, <input checked="true" class="filter" data-test-result="error" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="error">0 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable" col="duration">Duration</th>
+          <th class="sortable links" col="links">Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020001-NARIMAN POINT BR]</td>
+          <td class="col-duration">0.15</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020001
+{&quot;MICR&quot;:&quot;400002419&quot;,&quot;BRANCH&quot;:&quot;NARIMAN POINT BR&quot;,&quot;ADDRESS&quot;:&quot;MITTAL TOWERS C WINGNARIMAN POINTMUMBAI&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;GREATER BOMBAY&quot;,&quot;CENTRE&quot;:&quot;GREATER BOMBAY&quot;,&quot;DISTRICT&quot;:&quot;GREATER BOMBAY&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;SBININBBH01&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020001&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020002-KALINA]</td>
+          <td class="col-duration">0.14</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020002
+{&quot;MICR&quot;:&quot;400002424&quot;,&quot;BRANCH&quot;:&quot;KALINA&quot;,&quot;ADDRESS&quot;:&quot;GOLDEN ARROW APARTMENTSKALINA KURLA ROADSANTACRUZ&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;GREATER BOMBAY&quot;,&quot;CENTRE&quot;:&quot;GREATER BOMBAY&quot;,&quot;DISTRICT&quot;:&quot;GREATER BOMBAY&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020002&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020003-MANDVI]</td>
+          <td class="col-duration">0.15</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020003
+{&quot;MICR&quot;:&quot;400002420&quot;,&quot;BRANCH&quot;:&quot;MANDVI&quot;,&quot;ADDRESS&quot;:&quot;VEERMANI MARKET NN ST1ST FLOOR267 71BHAT BAZAAR&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;GREATER BOMBAY&quot;,&quot;CENTRE&quot;:&quot;GREATER BOMBAY&quot;,&quot;DISTRICT&quot;:&quot;GREATER BOMBAY&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020003&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020004-SHAHGUNJ]</td>
+          <td class="col-duration">0.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020004
+{&quot;MICR&quot;:&quot;431002031&quot;,&quot;BRANCH&quot;:&quot;SHAHGUNJ&quot;,&quot;ADDRESS&quot;:&quot;PONO2 SHAHAGUNJAURANGABADAURANGABAD&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;AURANGABAD&quot;,&quot;CENTRE&quot;:&quot;AURANGABAD&quot;,&quot;DISTRICT&quot;:&quot;AURANGABAD&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;SBININBBH02&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020004&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020005-CANTONMENT]</td>
+          <td class="col-duration">0.14</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020005
+{&quot;MICR&quot;:&quot;431002032&quot;,&quot;BRANCH&quot;:&quot;CANTONMENT&quot;,&quot;ADDRESS&quot;:&quot;OKAABAZARCAOMEAURAGABAD&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912402370205&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;AURANGABAD&quot;,&quot;CENTRE&quot;:&quot;AURANGABAD&quot;,&quot;DISTRICT&quot;:&quot;AURANGABAD&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020005&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020006-JALNA]</td>
+          <td class="col-duration">0.16</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020006
+{&quot;MICR&quot;:&quot;431002054&quot;,&quot;BRANCH&quot;:&quot;JALNA&quot;,&quot;ADDRESS&quot;:&quot;NEAR SHIVAJI STATUEJALNAJALNA&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;JALNA&quot;,&quot;CENTRE&quot;:&quot;JALNA&quot;,&quot;DISTRICT&quot;:&quot;JALNA&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020006&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020007-VAIJAPUR]</td>
+          <td class="col-duration">0.15</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020007
+{&quot;MICR&quot;:&quot;431002587&quot;,&quot;BRANCH&quot;:&quot;VAIJAPUR&quot;,&quot;ADDRESS&quot;:&quot;GLOWROWEKRGLOWVIJPUR&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912436222060&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;AURANGABAD&quot;,&quot;CENTRE&quot;:&quot;AURANGABAD&quot;,&quot;DISTRICT&quot;:&quot;AURANGABAD&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020007&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020008-AMBAD]</td>
+          <td class="col-duration">0.14</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020008
+{&quot;MICR&quot;:&quot;431002608&quot;,&quot;BRANCH&quot;:&quot;AMBAD&quot;,&quot;ADDRESS&quot;:&quot;OOBJLNISI&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912482261277&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;JALNA&quot;,&quot;CENTRE&quot;:&quot;JALNA&quot;,&quot;DISTRICT&quot;:&quot;JALNA&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020008&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020009-BHOKARDAN]</td>
+          <td class="col-duration">0.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020009
+{&quot;MICR&quot;:&quot;431002609&quot;,&quot;BRANCH&quot;:&quot;BHOKARDAN&quot;,&quot;ADDRESS&quot;:&quot;BUADMAIRADBHKARDHAALUQJALADIRIC&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912485244344&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;JALNA&quot;,&quot;CENTRE&quot;:&quot;JALNA&quot;,&quot;DISTRICT&quot;:&quot;JALNA&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020009&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020010-GANGAPUR]</td>
+          <td class="col-duration">0.14</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020010
+{&quot;MICR&quot;:&quot;431002588&quot;,&quot;BRANCH&quot;:&quot;GANGAPUR&quot;,&quot;ADDRESS&quot;:&quot;HVJCHOWKNERCVLCOURTGNGPURURNGBDDTTDCODE02433&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912433221335&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;AURANGABAD&quot;,&quot;CENTRE&quot;:&quot;AURANGABAD&quot;,&quot;DISTRICT&quot;:&quot;AURANGABAD&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020010&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020011-KANNAD]</td>
+          <td class="col-duration">0.15</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020011
+{&quot;MICR&quot;:&quot;431002589&quot;,&quot;BRANCH&quot;:&quot;KANNAD&quot;,&quot;ADDRESS&quot;:&quot;51AURANGABADROADKANNADAURANGABADDIST&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912435220026&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;AURANGABAD&quot;,&quot;CENTRE&quot;:&quot;AURANGABAD&quot;,&quot;DISTRICT&quot;:&quot;AURANGABAD&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020011&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020012-KHULTABAD]</td>
+          <td class="col-duration">0.13</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020012
+{&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;UPI&quot;:true,&quot;DISTRICT&quot;:&quot;AURANGABAD&quot;,&quot;MICR&quot;:&quot;431002590&quot;,&quot;CONTACT&quot;:&quot;+912437241399&quot;,&quot;BRANCH&quot;:&quot;KHULTABAD&quot;,&quot;CITY&quot;:&quot;AURANGABAD&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;ADDRESS&quot;:&quot;191 PLOT NO 1 NAGARPALIKA PANCHYAT SAMITI RD OPP BDO OFFICE KHULTABAD&quot;,&quot;CENTRE&quot;:&quot;AURANGABAD&quot;,&quot;RTGS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020012&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020013-LASUR]</td>
+          <td class="col-duration">0.11</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020013
+{&quot;MICR&quot;:&quot;431002633&quot;,&quot;BRANCH&quot;:&quot;LASUR&quot;,&quot;ADDRESS&quot;:&quot;LASUR STATIONGANGAPUR TALUQAURANGABAD DT&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;AURANGABAD&quot;,&quot;CENTRE&quot;:&quot;AURANGABAD&quot;,&quot;DISTRICT&quot;:&quot;AURANGABAD&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020013&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020014-PAITHAN]</td>
+          <td class="col-duration">0.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020014
+{&quot;MICR&quot;:&quot;431002634&quot;,&quot;BRANCH&quot;:&quot;PAITHAN&quot;,&quot;ADDRESS&quot;:&quot;UNBC041&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912431223041&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;AURANGABAD&quot;,&quot;CENTRE&quot;:&quot;AURANGABAD&quot;,&quot;DISTRICT&quot;:&quot;AURANGABAD&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020014&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020015-SILLOD]</td>
+          <td class="col-duration">0.11</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020015
+{&quot;MICR&quot;:&quot;431002593&quot;,&quot;BRANCH&quot;:&quot;SILLOD&quot;,&quot;ADDRESS&quot;:&quot;AAAOADILLODAUANGABADDITICT&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912430222026&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;AURANGABAD&quot;,&quot;CENTRE&quot;:&quot;AURANGABAD&quot;,&quot;DISTRICT&quot;:&quot;AURANGABAD&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020015&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020016-PARBHANI MAIN]</td>
+          <td class="col-duration">0.23</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020016
+{&quot;MICR&quot;:&quot;431002207&quot;,&quot;BRANCH&quot;:&quot;PARBHANI MAIN&quot;,&quot;ADDRESS&quot;:&quot;TTOOPH&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912452223243&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;PARBHANI&quot;,&quot;CENTRE&quot;:&quot;PARBHANI&quot;,&quot;DISTRICT&quot;:&quot;PARBHANI&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020016&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020017-BASMATHNAGAR]</td>
+          <td class="col-duration">0.11</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020017
+{&quot;MICR&quot;:&quot;431002551&quot;,&quot;BRANCH&quot;:&quot;BASMATHNAGAR&quot;,&quot;ADDRESS&quot;:&quot;ANROADBASATNAGARHNGOLDSTRCT&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912454220041&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;HINGOLI&quot;,&quot;CENTRE&quot;:&quot;HINGOLI&quot;,&quot;DISTRICT&quot;:&quot;HINGOLI&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020017&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020018-HINGOLI]</td>
+          <td class="col-duration">0.13</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020018
+{&quot;MICR&quot;:&quot;431002404&quot;,&quot;BRANCH&quot;:&quot;HINGOLI&quot;,&quot;ADDRESS&quot;:&quot;GLGLDSTRCT&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912456222337&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;HINGOLI&quot;,&quot;CENTRE&quot;:&quot;HINGOLI&quot;,&quot;DISTRICT&quot;:&quot;HINGOLI&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020018&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020019-JINTUR]</td>
+          <td class="col-duration">0.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020019
+{&quot;MICR&quot;:&quot;431002621&quot;,&quot;BRANCH&quot;:&quot;JINTUR&quot;,&quot;ADDRESS&quot;:&quot;ABAIDISTICTBESIDEBUSSTADJITU&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912457220056&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;PARBHANI&quot;,&quot;CENTRE&quot;:&quot;PARBHANI&quot;,&quot;DISTRICT&quot;:&quot;PARBHANI&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020019&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020020-MANWATH]</td>
+          <td class="col-duration">0.14</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020020
+{&quot;MICR&quot;:&quot;431002541&quot;,&quot;BRANCH&quot;:&quot;MANWATH&quot;,&quot;ADDRESS&quot;:&quot;ANROADANWATHPARBHANDSTRCT&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912451240548&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;PARBHANI&quot;,&quot;CENTRE&quot;:&quot;PARBHANI&quot;,&quot;DISTRICT&quot;:&quot;PARBHANI&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020020&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020021-PARTUR]</td>
+          <td class="col-duration">0.14</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020021
+{&quot;MICR&quot;:&quot;431002610&quot;,&quot;BRANCH&quot;:&quot;PARTUR&quot;,&quot;ADDRESS&quot;:&quot;6328STATIONROADJALNADISTRICT&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912484220617&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;JALNA&quot;,&quot;CENTRE&quot;:&quot;JALNA&quot;,&quot;DISTRICT&quot;:&quot;JALNA&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020021&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020022-SAILU]</td>
+          <td class="col-duration">0.11</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020022
+{&quot;MICR&quot;:&quot;431002543&quot;,&quot;BRANCH&quot;:&quot;SAILU&quot;,&quot;ADDRESS&quot;:&quot;SIUTUQBIIST&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912451222007&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;PARBHANI&quot;,&quot;CENTRE&quot;:&quot;PARBHANI&quot;,&quot;DISTRICT&quot;:&quot;PARBHANI&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020022&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020023-GANGAKHED]</td>
+          <td class="col-duration">0.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020023
+{&quot;MICR&quot;:&quot;431002538&quot;,&quot;BRANCH&quot;:&quot;GANGAKHED&quot;,&quot;ADDRESS&quot;:&quot;SKULNLONKPNS&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912453222030&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;PARBHANI&quot;,&quot;CENTRE&quot;:&quot;PARBHANI&quot;,&quot;DISTRICT&quot;:&quot;PARBHANI&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020023&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020024-KALMNURI]</td>
+          <td class="col-duration">0.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020024
+{&quot;MICR&quot;:&quot;431002552&quot;,&quot;BRANCH&quot;:&quot;KALMNURI&quot;,&quot;ADDRESS&quot;:&quot;GL DC&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912455220024&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;HINGOLI&quot;,&quot;CENTRE&quot;:&quot;HINGOLI&quot;,&quot;DISTRICT&quot;:&quot;HINGOLI&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020024&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020026-SONPETH]</td>
+          <td class="col-duration">0.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020026
+{&quot;MICR&quot;:&quot;431002537&quot;,&quot;BRANCH&quot;:&quot;SONPETH&quot;,&quot;ADDRESS&quot;:&quot;AAHDTQPARBHAIDIST&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912453240376&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;PARBHANI&quot;,&quot;CENTRE&quot;:&quot;PARBHANI&quot;,&quot;DISTRICT&quot;:&quot;PARBHANI&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020026&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020027-BHIR ADB]</td>
+          <td class="col-duration">0.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020027
+{&quot;MICR&quot;:&quot;431002305&quot;,&quot;BRANCH&quot;:&quot;BHIR ADB&quot;,&quot;ADDRESS&quot;:&quot;HENRROBEEST02442&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912442222253&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;BEED&quot;,&quot;CENTRE&quot;:&quot;BEED&quot;,&quot;DISTRICT&quot;:&quot;BEED&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020027&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020028-BEED MAIN]</td>
+          <td class="col-duration">0.13</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020028
+{&quot;MICR&quot;:&quot;431002309&quot;,&quot;BRANCH&quot;:&quot;BEED MAIN&quot;,&quot;ADDRESS&quot;:&quot;AHRGUNJNEARAHOKTALKEEEDDTRCT&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912442222317&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;BEED&quot;,&quot;CENTRE&quot;:&quot;BEED&quot;,&quot;DISTRICT&quot;:&quot;BEED&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020028&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020029-AMBAJOGAI]</td>
+          <td class="col-duration">0.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020029
+{&quot;MICR&quot;:&quot;431002153&quot;,&quot;BRANCH&quot;:&quot;AMBAJOGAI&quot;,&quot;ADDRESS&quot;:&quot;HVJCHOWKMBJOGBEEDDTRCT&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912446247029&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;BEED&quot;,&quot;CENTRE&quot;:&quot;BEED&quot;,&quot;DISTRICT&quot;:&quot;BEED&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020029&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020030-PARLI VAIJNATH]</td>
+          <td class="col-duration">0.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020030
+{&quot;MICR&quot;:&quot;431002353&quot;,&quot;BRANCH&quot;:&quot;PARLI VAIJNATH&quot;,&quot;ADDRESS&quot;:&quot;ODKTPLIVIDHYTHTQPUSLIBDDISTICT&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912446222004&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;BEED&quot;,&quot;CENTRE&quot;:&quot;BEED&quot;,&quot;DISTRICT&quot;:&quot;BEED&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020030&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020031-ASHTI]</td>
+          <td class="col-duration">0.14</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020031
+{&quot;MICR&quot;:&quot;431002520&quot;,&quot;BRANCH&quot;:&quot;ASHTI&quot;,&quot;ADDRESS&quot;:&quot;SRC&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912441282525&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;BEED&quot;,&quot;CENTRE&quot;:&quot;BEED&quot;,&quot;DISTRICT&quot;:&quot;BEED&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020031&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020032-KILLE DHARUR]</td>
+          <td class="col-duration">0.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020032
+{&quot;MICR&quot;:&quot;431002521&quot;,&quot;BRANCH&quot;:&quot;KILLE DHARUR&quot;,&quot;ADDRESS&quot;:&quot;AJTALUBEEDDSTRCT&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912445274134&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;BEED&quot;,&quot;CENTRE&quot;:&quot;BEED&quot;,&quot;DISTRICT&quot;:&quot;BEED&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020032&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020033-GEORAI]</td>
+          <td class="col-duration">0.11</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020033
+{&quot;MICR&quot;:&quot;431002522&quot;,&quot;BRANCH&quot;:&quot;GEORAI&quot;,&quot;ADDRESS&quot;:&quot;ERITQBEEDDISTRICT&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912447262023&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;BEED&quot;,&quot;CENTRE&quot;:&quot;BEED&quot;,&quot;DISTRICT&quot;:&quot;BEED&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020033&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020034-KAIJ]</td>
+          <td class="col-duration">0.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020034
+{&quot;MICR&quot;:&quot;431002523&quot;,&quot;BRANCH&quot;:&quot;KAIJ&quot;,&quot;ADDRESS&quot;:&quot;4ROZAMOHLLABEEDDISTRITSTD02445&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912445252228&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;BEED&quot;,&quot;CENTRE&quot;:&quot;BEED&quot;,&quot;DISTRICT&quot;:&quot;BEED&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020034&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020035-MANJLEGAON]</td>
+          <td class="col-duration">0.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020035
+{&quot;MICR&quot;:&quot;431002253&quot;,&quot;BRANCH&quot;:&quot;MANJLEGAON&quot;,&quot;ADDRESS&quot;:&quot;KMANJALGAONMAINROADBHIRDISRIC&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912443234028&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;BEED&quot;,&quot;CENTRE&quot;:&quot;BEED&quot;,&quot;DISTRICT&quot;:&quot;BEED&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020035&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020036-PATODA]</td>
+          <td class="col-duration">0.11</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020036
+{&quot;MICR&quot;:&quot;431002524&quot;,&quot;BRANCH&quot;:&quot;PATODA&quot;,&quot;ADDRESS&quot;:&quot;AMHWBDDSTRT&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912444243136&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;BEED&quot;,&quot;CENTRE&quot;:&quot;BEED&quot;,&quot;DISTRICT&quot;:&quot;BEED&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020036&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020037-MAIN BR]</td>
+          <td class="col-duration">0.21</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020037
+{&quot;MICR&quot;:&quot;413002055&quot;,&quot;BRANCH&quot;:&quot;MAIN BR&quot;,&quot;ADDRESS&quot;:&quot;HNRNGRLTURLTURISTRIT&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912382246079&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;LATUR&quot;,&quot;CENTRE&quot;:&quot;LATUR&quot;,&quot;DISTRICT&quot;:&quot;LATUR&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020037&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020038-MURUM]</td>
+          <td class="col-duration">0.11</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020038
+{&quot;MICR&quot;:&quot;413002625&quot;,&quot;BRANCH&quot;:&quot;MURUM&quot;,&quot;ADDRESS&quot;:&quot;UUAINOADOEGATQOSANABADDIST&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912475256160&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;OSMANABAD&quot;,&quot;CENTRE&quot;:&quot;OSMANABAD&quot;,&quot;DISTRICT&quot;:&quot;OSMANABAD&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020038&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020039-OSMANABAD]</td>
+          <td class="col-duration">0.14</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020039
+{&quot;MICR&quot;:&quot;413002128&quot;,&quot;BRANCH&quot;:&quot;OSMANABAD&quot;,&quot;ADDRESS&quot;:&quot;S SRS&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912472222224&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;OSMANABAD&quot;,&quot;CENTRE&quot;:&quot;OSMANABAD&quot;,&quot;DISTRICT&quot;:&quot;OSMANABAD&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020039&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020040-UDGIR]</td>
+          <td class="col-duration">0.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020040
+{&quot;MICR&quot;:&quot;413002228&quot;,&quot;BRANCH&quot;:&quot;UDGIR&quot;,&quot;ADDRESS&quot;:&quot;DIQADISICDI&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912385256004&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;LATUR&quot;,&quot;CENTRE&quot;:&quot;LATUR&quot;,&quot;DISTRICT&quot;:&quot;LATUR&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020040&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020041-AHMEDPUR]</td>
+          <td class="col-duration">0.11</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020041
+{&quot;MICR&quot;:&quot;413002603&quot;,&quot;BRANCH&quot;:&quot;AHMEDPUR&quot;,&quot;ADDRESS&quot;:&quot;AAAPULENAGARAEDPURQLAURDISRIC&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912381262041&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;LATUR&quot;,&quot;CENTRE&quot;:&quot;LATUR&quot;,&quot;DISTRICT&quot;:&quot;LATUR&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020041&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020042-BHOOM]</td>
+          <td class="col-duration">0.13</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020042
+{&quot;MICR&quot;:&quot;413002623&quot;,&quot;BRANCH&quot;:&quot;BHOOM&quot;,&quot;ADDRESS&quot;:&quot;HMTQSMANAADDISTRICT&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912478272040&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;OSMANABAD&quot;,&quot;CENTRE&quot;:&quot;OSMANABAD&quot;,&quot;DISTRICT&quot;:&quot;OSMANABAD&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020042&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020043-KALLAM]</td>
+          <td class="col-duration">0.13</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020043
+{&quot;MICR&quot;:&quot;413002626&quot;,&quot;BRANCH&quot;:&quot;KALLAM&quot;,&quot;ADDRESS&quot;:&quot;AKSTREETKALLAMTQOSMAAADDIST&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912473262032&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;OSMANABAD&quot;,&quot;CENTRE&quot;:&quot;OSMANABAD&quot;,&quot;DISTRICT&quot;:&quot;OSMANABAD&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020043&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020044-NALDURG]</td>
+          <td class="col-duration">0.11</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020044
+{&quot;MICR&quot;:&quot;413002624&quot;,&quot;BRANCH&quot;:&quot;NALDURG&quot;,&quot;ADDRESS&quot;:&quot;ANROADNALDURGTULJAPURTQOSANABADDST&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912471246765&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;OSMANABAD&quot;,&quot;CENTRE&quot;:&quot;OSMANABAD&quot;,&quot;DISTRICT&quot;:&quot;OSMANABAD&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020044&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020045-NILANGA]</td>
+          <td class="col-duration">0.13</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020045
+{&quot;MICR&quot;:&quot;413002328&quot;,&quot;BRANCH&quot;:&quot;NILANGA&quot;,&quot;ADDRESS&quot;:&quot;AU II&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912384242043&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;LATUR&quot;,&quot;CENTRE&quot;:&quot;LATUR&quot;,&quot;DISTRICT&quot;:&quot;LATUR&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020045&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020046-OMERGA]</td>
+          <td class="col-duration">0.13</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020046
+{&quot;MICR&quot;:&quot;413002604&quot;,&quot;BRANCH&quot;:&quot;OMERGA&quot;,&quot;ADDRESS&quot;:&quot;HVJCHOWKOMNBDDTRCT&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912475252008&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;OSMANABAD&quot;,&quot;CENTRE&quot;:&quot;OSMANABAD&quot;,&quot;DISTRICT&quot;:&quot;OSMANABAD&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020046&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020047-PARANDA]</td>
+          <td class="col-duration">0.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020047
+{&quot;MICR&quot;:&quot;413002627&quot;,&quot;BRANCH&quot;:&quot;PARANDA&quot;,&quot;ADDRESS&quot;:&quot;5PARANDATQOSMANABADDISTRICTSTD02478&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912477232032&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;OSMANABAD&quot;,&quot;CENTRE&quot;:&quot;OSMANABAD&quot;,&quot;DISTRICT&quot;:&quot;OSMANABAD&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020047&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020048-TULJAPUR]</td>
+          <td class="col-duration">0.14</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020048
+{&quot;MICR&quot;:&quot;413002622&quot;,&quot;BRANCH&quot;:&quot;TULJAPUR&quot;,&quot;ADDRESS&quot;:&quot;HVIKRIPUILDIGERSTUSSTDOSDDTMGLWRPET&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912471242043&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;OSMANABAD&quot;,&quot;CENTRE&quot;:&quot;OSMANABAD&quot;,&quot;DISTRICT&quot;:&quot;OSMANABAD&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020048&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020049-I E NANDED]</td>
+          <td class="col-duration">0.14</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020049
+{&quot;MICR&quot;:&quot;431002104&quot;,&quot;BRANCH&quot;:&quot;I E NANDED&quot;,&quot;ADDRESS&quot;:&quot;OOPINDUSTRIALESTATESHIVAJINAGARNANDED&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912462255607&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;NANDED&quot;,&quot;CENTRE&quot;:&quot;NANDED&quot;,&quot;DISTRICT&quot;:&quot;NANDED&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020049&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020050-NANDED VAZIRABAD]</td>
+          <td class="col-duration">0.11</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020050
+{&quot;MICR&quot;:&quot;431002105&quot;,&quot;BRANCH&quot;:&quot;NANDED VAZIRABAD&quot;,&quot;ADDRESS&quot;:&quot;NRNAPTALBULDNGPAEEEANJUMANLANE&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912462232082&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;NANDED&quot;,&quot;CENTRE&quot;:&quot;NANDED&quot;,&quot;DISTRICT&quot;:&quot;NANDED&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020050&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020051-DEGLOOR]</td>
+          <td class="col-duration">0.11</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020051
+{&quot;MICR&quot;:&quot;431002453&quot;,&quot;BRANCH&quot;:&quot;DEGLOOR&quot;,&quot;ADDRESS&quot;:&quot;CRRRDRDD&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912463255014&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;NANDED&quot;,&quot;CENTRE&quot;:&quot;NANDED&quot;,&quot;DISTRICT&quot;:&quot;NANDED&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020051&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020052-BHOKAR]</td>
+          <td class="col-duration">0.13</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020052
+{&quot;MICR&quot;:&quot;431002627&quot;,&quot;BRANCH&quot;:&quot;BHOKAR&quot;,&quot;ADDRESS&quot;:&quot;HARHAINSARADMAINRAD&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912467222626&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;NANDED&quot;,&quot;CENTRE&quot;:&quot;NANDED&quot;,&quot;DISTRICT&quot;:&quot;NANDED&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020052&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020053-BILOLI]</td>
+          <td class="col-duration">0.11</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020053
+{&quot;MICR&quot;:&quot;431002628&quot;,&quot;BRANCH&quot;:&quot;BILOLI&quot;,&quot;ADDRESS&quot;:&quot;ANROADBLOLDSTRCTNANDED&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912465223631&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;NANDED&quot;,&quot;CENTRE&quot;:&quot;NANDED&quot;,&quot;DISTRICT&quot;:&quot;NANDED&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020053&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020054-DHARMABAD]</td>
+          <td class="col-duration">0.13</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020054
+{&quot;MICR&quot;:&quot;431002561&quot;,&quot;BRANCH&quot;:&quot;DHARMABAD&quot;,&quot;ADDRESS&quot;:&quot;N66CNERMRKETYR&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912465244231&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;NANDED&quot;,&quot;CENTRE&quot;:&quot;NANDED&quot;,&quot;DISTRICT&quot;:&quot;NANDED&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020054&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020055-HADGAON]</td>
+          <td class="col-duration">0.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020055
+{&quot;MICR&quot;:&quot;431002562&quot;,&quot;BRANCH&quot;:&quot;HADGAON&quot;,&quot;ADDRESS&quot;:&quot;OEO B TD&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912468222322&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;NANDED&quot;,&quot;CENTRE&quot;:&quot;NANDED&quot;,&quot;DISTRICT&quot;:&quot;NANDED&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020055&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020056-KANDHAR]</td>
+          <td class="col-duration">0.13</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020056
+{&quot;MICR&quot;:&quot;431002563&quot;,&quot;BRANCH&quot;:&quot;KANDHAR&quot;,&quot;ADDRESS&quot;:&quot;LCTTHJCHWK&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912466223434&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;NANDED&quot;,&quot;CENTRE&quot;:&quot;NANDED&quot;,&quot;DISTRICT&quot;:&quot;NANDED&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020056&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020057-KINWAT]</td>
+          <td class="col-duration">0.11</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020057
+{&quot;MICR&quot;:&quot;431002629&quot;,&quot;BRANCH&quot;:&quot;KINWAT&quot;,&quot;ADDRESS&quot;:&quot;IILOILBILDIGSHIVAJIHOWK&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912469222007&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;NANDED&quot;,&quot;CENTRE&quot;:&quot;NANDED&quot;,&quot;DISTRICT&quot;:&quot;NANDED&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020057&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020058-MUKHED]</td>
+          <td class="col-duration">0.11</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020058
+{&quot;MICR&quot;:&quot;431002565&quot;,&quot;BRANCH&quot;:&quot;MUKHED&quot;,&quot;ADDRESS&quot;:&quot;ANROADUKHEDNEARTHASLOFFCE&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+912461222528&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;NANDED&quot;,&quot;CENTRE&quot;:&quot;NANDED&quot;,&quot;DISTRICT&quot;:&quot;NANDED&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020058&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020059-RAJURA]</td>
+          <td class="col-duration">0.13</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020059
+{&quot;MICR&quot;:&quot;442002508&quot;,&quot;BRANCH&quot;:&quot;RAJURA&quot;,&quot;ADDRESS&quot;:&quot;UMUTQCHNDPUDISTICT&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+917173222138&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;CHANDRAPUR&quot;,&quot;CENTRE&quot;:&quot;CHANDRAPUR&quot;,&quot;DISTRICT&quot;:&quot;CHANDRAPUR&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020059&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020060-DEULGAON RAJA]</td>
+          <td class="col-duration">0.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020060
+{&quot;MICR&quot;:&quot;431002620&quot;,&quot;BRANCH&quot;:&quot;DEULGAON RAJA&quot;,&quot;ADDRESS&quot;:&quot;ELANRAJATQBLANAISTRICT&quot;,&quot;STATE&quot;:&quot;MAHARASHTRA&quot;,&quot;CONTACT&quot;:&quot;+917261232007&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;BULDHANA&quot;,&quot;CENTRE&quot;:&quot;BULDHANA&quot;,&quot;DISTRICT&quot;:&quot;BULDHANA&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-MH&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020060&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020061-MALAKPET HYDERABAD]</td>
+          <td class="col-duration">0.13</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020061
+{&quot;MICR&quot;:&quot;500002332&quot;,&quot;BRANCH&quot;:&quot;MALAKPET HYDERABAD&quot;,&quot;ADDRESS&quot;:&quot;SIESAHIFAMSQUEAZAMURAHYDERABAD&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+914024412022&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;HYDERABAD URBAN&quot;,&quot;CENTRE&quot;:&quot;HYDERABAD URBAN&quot;,&quot;DISTRICT&quot;:&quot;HYDERABAD URBAN&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020061&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020062-SULTANBAZAR HYDERABAD]</td>
+          <td class="col-duration">0.13</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020062
+{&quot;MICR&quot;:&quot;500002358&quot;,&quot;BRANCH&quot;:&quot;SULTANBAZAR HYDERABAD&quot;,&quot;ADDRESS&quot;:&quot;N51721ND722BANKSTREETKTIYDERABAD&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+914024611978&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;HYDERABAD URBAN&quot;,&quot;CENTRE&quot;:&quot;HYDERABAD URBAN&quot;,&quot;DISTRICT&quot;:&quot;HYDERABAD URBAN&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020062&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020063-BELLAVISTA]</td>
+          <td class="col-duration">0.11</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020063
+{&quot;MICR&quot;:&quot;500002306&quot;,&quot;BRANCH&quot;:&quot;BELLAVISTA&quot;,&quot;ADDRESS&quot;:&quot;AILEELABUILDINGNEAYASHODHAHOSPITALAJBHAANOADSOMAJIGUDAHYD&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+914023418252&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;HYDERABAD URBAN&quot;,&quot;CENTRE&quot;:&quot;HYDERABAD URBAN&quot;,&quot;DISTRICT&quot;:&quot;HYDERABAD URBAN&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020063&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020064-CHIKKADPALLY]</td>
+          <td class="col-duration">0.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020064
+{&quot;MICR&quot;:&quot;500002309&quot;,&quot;BRANCH&quot;:&quot;CHIKKADPALLY&quot;,&quot;ADDRESS&quot;:&quot;N185631RTCXRADSPPSANDYATEATREYDERABAD&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+914027634165&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;HYDERABAD URBAN&quot;,&quot;CENTRE&quot;:&quot;HYDERABAD URBAN&quot;,&quot;DISTRICT&quot;:&quot;HYDERABAD URBAN&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020064&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020065-EXHIBITION GROUNDS HYDERABAD]</td>
+          <td class="col-duration">0.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020065
+{&quot;MICR&quot;:&quot;500002314&quot;,&quot;BRANCH&quot;:&quot;EXHIBITION GROUNDS HYDERABAD&quot;,&quot;ADDRESS&quot;:&quot;EE&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+914024732226&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;HYDERABAD URBAN&quot;,&quot;CENTRE&quot;:&quot;HYDERABAD URBAN&quot;,&quot;DISTRICT&quot;:&quot;HYDERABAD URBAN&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020065&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020066-GUNFOUNDRY BR]</td>
+          <td class="col-duration">0.11</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020066
+{&quot;MICR&quot;:&quot;500002317&quot;,&quot;BRANCH&quot;:&quot;GUNFOUNDRY BR&quot;,&quot;ADDRESS&quot;:&quot;YISY&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+914023387808&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;HYDERABAD URBAN&quot;,&quot;CENTRE&quot;:&quot;HYDERABAD URBAN&quot;,&quot;DISTRICT&quot;:&quot;HYDERABAD URBAN&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;SBININBBH03&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020066&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020067-HIMAYATNAGAR HYDERABAD]</td>
+          <td class="col-duration">0.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020067
+{&quot;MICR&quot;:&quot;500002319&quot;,&quot;BRANCH&quot;:&quot;HIMAYATNAGAR HYDERABAD&quot;,&quot;ADDRESS&quot;:&quot;D3HIMAYATNAGARHYDERABADHYDERABAD&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+914023226005&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;HYDERABAD URBAN&quot;,&quot;CENTRE&quot;:&quot;HYDERABAD URBAN&quot;,&quot;DISTRICT&quot;:&quot;HYDERABAD URBAN&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020067&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020068-HUSSAINI ALAM HYDERABAD]</td>
+          <td class="col-duration">0.11</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020068
+{&quot;MICR&quot;:&quot;500002321&quot;,&quot;BRANCH&quot;:&quot;HUSSAINI ALAM HYDERABAD&quot;,&quot;ADDRESS&quot;:&quot;N2MABWLIUAINIALAMYDERABAD&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+914024512181&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;HYDERABAD URBAN&quot;,&quot;CENTRE&quot;:&quot;HYDERABAD URBAN&quot;,&quot;DISTRICT&quot;:&quot;HYDERABAD URBAN&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020068&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020069-MAHABOOBGUNJ]</td>
+          <td class="col-duration">0.13</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020069
+{&quot;MICR&quot;:&quot;500002331&quot;,&quot;BRANCH&quot;:&quot;MAHABOOBGUNJ&quot;,&quot;ADDRESS&quot;:&quot;52404TO47LANDMARKCENTRESIDDIAMBERBAZAR&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+914024600895&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;HYDERABAD URBAN&quot;,&quot;CENTRE&quot;:&quot;HYDERABAD URBAN&quot;,&quot;DISTRICT&quot;:&quot;HYDERABAD URBAN&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020069&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020070-SHANTINAGAR HYDERABAD]</td>
+          <td class="col-duration">0.13</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020070
+{&quot;MICR&quot;:&quot;500002355&quot;,&quot;BRANCH&quot;:&quot;SHANTINAGAR HYDERABAD&quot;,&quot;ADDRESS&quot;:&quot;0228985SHANTINAGARHYDERABAD&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+914023391354&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;HYDERABAD URBAN&quot;,&quot;CENTRE&quot;:&quot;HYDERABAD URBAN&quot;,&quot;DISTRICT&quot;:&quot;HYDERABAD URBAN&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020070&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020071-OSMANIA UNIVERSITY HYDERABAD]</td>
+          <td class="col-duration">0.14</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020071
+{&quot;MICR&quot;:&quot;500002342&quot;,&quot;BRANCH&quot;:&quot;OSMANIA UNIVERSITY HYDERABAD&quot;,&quot;ADDRESS&quot;:&quot;RSCOLLEGEPREMISESHYDERBD&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+914027098642&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;HYDERABAD URBAN&quot;,&quot;CENTRE&quot;:&quot;HYDERABAD URBAN&quot;,&quot;DISTRICT&quot;:&quot;HYDERABAD URBAN&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020071&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020072-PUNJAGUTTA HYDERABAD]</td>
+          <td class="col-duration">0.13</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020072
+{&quot;MICR&quot;:&quot;500002344&quot;,&quot;BRANCH&quot;:&quot;PUNJAGUTTA HYDERABAD&quot;,&quot;ADDRESS&quot;:&quot;4PUNJAGUTTABESIDENIMSHYDERABAD&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+914023323665&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;HYDERABAD URBAN&quot;,&quot;CENTRE&quot;:&quot;HYDERABAD URBAN&quot;,&quot;DISTRICT&quot;:&quot;HYDERABAD URBAN&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;SBININBBH04&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020072&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020073-CITY BRANCH HYDERABAD]</td>
+          <td class="col-duration">0.13</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020073
+{&quot;MICR&quot;:&quot;500002310&quot;,&quot;BRANCH&quot;:&quot;CITY BRANCH HYDERABAD&quot;,&quot;ADDRESS&quot;:&quot;AIABUILIGPATHERGATTIHYERABA&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+914024522506&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;HYDERABAD URBAN&quot;,&quot;CENTRE&quot;:&quot;HYDERABAD URBAN&quot;,&quot;DISTRICT&quot;:&quot;HYDERABAD URBAN&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020073&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020074-RAJENDRANAGAR]</td>
+          <td class="col-duration">0.14</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020074
+{&quot;MICR&quot;:&quot;500002348&quot;,&quot;BRANCH&quot;:&quot;RAJENDRANAGAR&quot;,&quot;ADDRESS&quot;:&quot;P MTTL HY&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+914024012332&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;HYDERABAD URBAN&quot;,&quot;CENTRE&quot;:&quot;HYDERABAD URBAN&quot;,&quot;DISTRICT&quot;:&quot;HYDERABAD URBAN&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020074&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020075-RAMACHANDRAPURAM RCPURAM]</td>
+          <td class="col-duration">0.11</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020075
+{&quot;MICR&quot;:&quot;500002370&quot;,&quot;BRANCH&quot;:&quot;RAMACHANDRAPURAM RCPURAM&quot;,&quot;ADDRESS&quot;:&quot;HLTOWNSHIPRAMCHANDRAPURAMHYDRAAD&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+914023027035&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;MEDAK&quot;,&quot;CENTRE&quot;:&quot;MEDAK&quot;,&quot;DISTRICT&quot;:&quot;MEDAK&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;SBININBBH05&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020075&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020076-SANATNAGAR]</td>
+          <td class="col-duration">0.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020076
+{&quot;MICR&quot;:&quot;500002352&quot;,&quot;BRANCH&quot;:&quot;SANATNAGAR&quot;,&quot;ADDRESS&quot;:&quot;R72C47AIUSTRIALESTATESAATHAGARHYERABA&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+914023815270&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;HYDERABAD URBAN&quot;,&quot;CENTRE&quot;:&quot;HYDERABAD URBAN&quot;,&quot;DISTRICT&quot;:&quot;HYDERABAD URBAN&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;SBININBBH06&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020076&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020077-SECRETARIAT HYDERABAD]</td>
+          <td class="col-duration">0.14</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020077
+{&quot;MICR&quot;:&quot;500002354&quot;,&quot;BRANCH&quot;:&quot;SECRETARIAT HYDERABAD&quot;,&quot;ADDRESS&quot;:&quot;PRTRTMPURTRTRODHYDRBD&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+914023456375&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;HYDERABAD URBAN&quot;,&quot;CENTRE&quot;:&quot;HYDERABAD URBAN&quot;,&quot;DISTRICT&quot;:&quot;HYDERABAD URBAN&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020077&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020078-KACHEGUDA]</td>
+          <td class="col-duration">0.13</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020078
+{&quot;MICR&quot;:&quot;500002323&quot;,&quot;BRANCH&quot;:&quot;KACHEGUDA&quot;,&quot;ADDRESS&quot;:&quot;545CHAPPALBAZAARHYDERABAD&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+914024730932&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;HYDERABAD URBAN&quot;,&quot;CENTRE&quot;:&quot;HYDERABAD URBAN&quot;,&quot;DISTRICT&quot;:&quot;HYDERABAD URBAN&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020078&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020079-NAMPALLI STN RD]</td>
+          <td class="col-duration">0.15</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020079
+{&quot;MICR&quot;:&quot;500002340&quot;,&quot;BRANCH&quot;:&quot;NAMPALLI STN RD&quot;,&quot;ADDRESS&quot;:&quot;1STFLOORHINDIPRACHARSABHACOMPLEXHYDERABAD&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+914024658727&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;HYDERABAD URBAN&quot;,&quot;CENTRE&quot;:&quot;HYDERABAD URBAN&quot;,&quot;DISTRICT&quot;:&quot;HYDERABAD URBAN&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020079&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020080-BOLARAM]</td>
+          <td class="col-duration">0.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020080
+{&quot;MICR&quot;:&quot;500002307&quot;,&quot;BRANCH&quot;:&quot;BOLARAM&quot;,&quot;ADDRESS&quot;:&quot;6CARIAPPAROADSECUNDERABAD&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+914027862193&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;HYDERABAD URBAN&quot;,&quot;CENTRE&quot;:&quot;HYDERABAD URBAN&quot;,&quot;DISTRICT&quot;:&quot;HYDERABAD URBAN&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020080&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020081-GENERAL BAZAR]</td>
+          <td class="col-duration">0.11</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020081
+{&quot;MICR&quot;:&quot;500002315&quot;,&quot;BRANCH&quot;:&quot;GENERAL BAZAR&quot;,&quot;ADDRESS&quot;:&quot;ERMJUTLKIESGEERLBZRSECUDERBD&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+914027812347&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;HYDERABAD URBAN&quot;,&quot;CENTRE&quot;:&quot;HYDERABAD URBAN&quot;,&quot;DISTRICT&quot;:&quot;HYDERABAD URBAN&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020081&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020082-LALAGUDA]</td>
+          <td class="col-duration">0.11</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020082
+{&quot;MICR&quot;:&quot;500002329&quot;,&quot;BRANCH&quot;:&quot;LALAGUDA&quot;,&quot;ADDRESS&quot;:&quot;TTTTECEB&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+914027001015&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;HYDERABAD URBAN&quot;,&quot;CENTRE&quot;:&quot;HYDERABAD URBAN&quot;,&quot;DISTRICT&quot;:&quot;HYDERABAD URBAN&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020082&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020083-NALLAKUNTA HYDERABAD]</td>
+          <td class="col-duration">0.13</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020083
+{&quot;MICR&quot;:&quot;500002339&quot;,&quot;BRANCH&quot;:&quot;NALLAKUNTA HYDERABAD&quot;,&quot;ADDRESS&quot;:&quot;AAUAYEAA&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+914027607201&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;HYDERABAD URBAN&quot;,&quot;CENTRE&quot;:&quot;HYDERABAD URBAN&quot;,&quot;DISTRICT&quot;:&quot;HYDERABAD URBAN&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020083&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020084-RPROAD]</td>
+          <td class="col-duration">0.13</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020084
+{&quot;MICR&quot;:&quot;500002346&quot;,&quot;BRANCH&quot;:&quot;RPROAD&quot;,&quot;ADDRESS&quot;:&quot;A1772T77ISTFLSECUNEABA&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+914027818607&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;HYDERABAD URBAN&quot;,&quot;CENTRE&quot;:&quot;HYDERABAD URBAN&quot;,&quot;DISTRICT&quot;:&quot;HYDERABAD URBAN&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;SBININBBH07&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020084&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020085-BALANAGAR]</td>
+          <td class="col-duration">0.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020085
+{&quot;MICR&quot;:&quot;500002303&quot;,&quot;BRANCH&quot;:&quot;BALANAGAR&quot;,&quot;ADDRESS&quot;:&quot;HNO 9 26THE CO OP INDUSTRIAL ESTATE ANDHRA PRADESH&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+914023771888&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;HYDERABAD URBAN&quot;,&quot;CENTRE&quot;:&quot;HYDERABAD URBAN&quot;,&quot;DISTRICT&quot;:&quot;HYDERABAD URBAN&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;SBININBBH08&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020085&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020086-TANDUR]</td>
+          <td class="col-duration">0.14</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020086
+{&quot;MICR&quot;:&quot;501002102&quot;,&quot;BRANCH&quot;:&quot;TANDUR&quot;,&quot;ADDRESS&quot;:&quot;OKEGEYC&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+918411272003&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;RANGA REDDY&quot;,&quot;CENTRE&quot;:&quot;RANGA REDDY&quot;,&quot;DISTRICT&quot;:&quot;RANGA REDDY&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020086&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020087-HABSHIGUDA]</td>
+          <td class="col-duration">0.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020087
+{&quot;MICR&quot;:&quot;500002318&quot;,&quot;BRANCH&quot;:&quot;HABSHIGUDA&quot;,&quot;ADDRESS&quot;:&quot;ALROADRANGAREDDYDISTRICT&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+914065966481&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;HYDERABAD URBAN&quot;,&quot;CENTRE&quot;:&quot;HYDERABAD URBAN&quot;,&quot;DISTRICT&quot;:&quot;HYDERABAD URBAN&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;SBININBBH09&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020087&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020088-PURANAPOOL HYDERABAD]</td>
+          <td class="col-duration">0.13</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020088
+{&quot;MICR&quot;:&quot;500002345&quot;,&quot;BRANCH&quot;:&quot;PURANAPOOL HYDERABAD&quot;,&quot;ADDRESS&quot;:&quot;33266PURANAPOOLKARAWANROADHYDERABAD&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+914024821216&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;HYDERABAD URBAN&quot;,&quot;CENTRE&quot;:&quot;HYDERABAD URBAN&quot;,&quot;DISTRICT&quot;:&quot;HYDERABAD URBAN&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020088&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020089-CHEVELLA]</td>
+          <td class="col-duration">0.13</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020089
+{&quot;MICR&quot;:&quot;501002602&quot;,&quot;BRANCH&quot;:&quot;CHEVELLA&quot;,&quot;ADDRESS&quot;:&quot;HVG STT&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+918417243999&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;RANGA REDDY&quot;,&quot;CENTRE&quot;:&quot;RANGA REDDY&quot;,&quot;DISTRICT&quot;:&quot;RANGA REDDY&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020089&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020090-IBRAHIMPATNAM]</td>
+          <td class="col-duration">0.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020090
+{&quot;MICR&quot;:&quot;500002396&quot;,&quot;BRANCH&quot;:&quot;IBRAHIMPATNAM&quot;,&quot;ADDRESS&quot;:&quot;BMNMNGEDDYDSC&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+918414222032&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;RANGA REDDY&quot;,&quot;CENTRE&quot;:&quot;RANGA REDDY&quot;,&quot;DISTRICT&quot;:&quot;RANGA REDDY&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020090&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020091-MEDCHAL]</td>
+          <td class="col-duration">0.11</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020091
+{&quot;MICR&quot;:&quot;500002367&quot;,&quot;BRANCH&quot;:&quot;MEDCHAL&quot;,&quot;ADDRESS&quot;:&quot;ECRNGREYISTRICT&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+918418221533&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;RANGA REDDY&quot;,&quot;CENTRE&quot;:&quot;RANGA REDDY&quot;,&quot;DISTRICT&quot;:&quot;RANGA REDDY&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020091&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020092-PARGI]</td>
+          <td class="col-duration">0.13</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020092
+{&quot;MICR&quot;:&quot;501002622&quot;,&quot;BRANCH&quot;:&quot;PARGI&quot;,&quot;ADDRESS&quot;:&quot;GQNGEDDYDSC&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+918412222221&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;RANGA REDDY&quot;,&quot;CENTRE&quot;:&quot;RANGA REDDY&quot;,&quot;DISTRICT&quot;:&quot;RANGA REDDY&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020092&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020093-SHABAD]</td>
+          <td class="col-duration">0.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020093
+{&quot;MICR&quot;:&quot;501002604&quot;,&quot;BRANCH&quot;:&quot;SHABAD&quot;,&quot;ADDRESS&quot;:&quot;GEYISTICT&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+918417279225&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;RANGA REDDY&quot;,&quot;CENTRE&quot;:&quot;RANGA REDDY&quot;,&quot;DISTRICT&quot;:&quot;RANGA REDDY&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020093&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020094-VIKARABAD]</td>
+          <td class="col-duration">0.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020094
+{&quot;MICR&quot;:&quot;501002002&quot;,&quot;BRANCH&quot;:&quot;VIKARABAD&quot;,&quot;ADDRESS&quot;:&quot;THIIODVIKBDDISTICT&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+918416253411&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;RANGA REDDY&quot;,&quot;CENTRE&quot;:&quot;RANGA REDDY&quot;,&quot;DISTRICT&quot;:&quot;RANGA REDDY&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020094&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020095-VIDYANAGAR HYDERABAD]</td>
+          <td class="col-duration">0.11</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020095
+{&quot;MICR&quot;:&quot;500002360&quot;,&quot;BRANCH&quot;:&quot;VIDYANAGAR HYDERABAD&quot;,&quot;ADDRESS&quot;:&quot;IYNRYR&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+914027617489&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;HYDERABAD URBAN&quot;,&quot;CENTRE&quot;:&quot;HYDERABAD URBAN&quot;,&quot;DISTRICT&quot;:&quot;HYDERABAD URBAN&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020095&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020096-MOULA ALI]</td>
+          <td class="col-duration">0.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020096
+{&quot;MICR&quot;:&quot;500002336&quot;,&quot;BRANCH&quot;:&quot;MOULA ALI&quot;,&quot;ADDRESS&quot;:&quot;OLLSCB&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+914027122583&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;HYDERABAD URBAN&quot;,&quot;CENTRE&quot;:&quot;HYDERABAD URBAN&quot;,&quot;DISTRICT&quot;:&quot;HYDERABAD URBAN&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020096&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020097-JOGIPET]</td>
+          <td class="col-duration">0.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020097
+{&quot;MICR&quot;:&quot;502002564&quot;,&quot;BRANCH&quot;:&quot;JOGIPET&quot;,&quot;ADDRESS&quot;:&quot;NOITQMEKISTRICT&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+918450272041&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;MEDAK&quot;,&quot;CENTRE&quot;:&quot;MEDAK&quot;,&quot;DISTRICT&quot;:&quot;MEDAK&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020097&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020098-MEDAK]</td>
+          <td class="col-duration">0.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020098
+{&quot;MICR&quot;:&quot;502002505&quot;,&quot;BRANCH&quot;:&quot;MEDAK&quot;,&quot;ADDRESS&quot;:&quot;9CMEDAKMAINROADMEDAK&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+918452220066&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;MEDAK&quot;,&quot;CENTRE&quot;:&quot;MEDAK&quot;,&quot;DISTRICT&quot;:&quot;MEDAK&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020098&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020099-SADASHIVPET]</td>
+          <td class="col-duration">0.13</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020099
+{&quot;MICR&quot;:&quot;502002530&quot;,&quot;BRANCH&quot;:&quot;SADASHIVPET&quot;,&quot;ADDRESS&quot;:&quot;00NH9MAINROADSADASIVPETMEDAK&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+918455252029&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;MEDAK&quot;,&quot;CENTRE&quot;:&quot;MEDAK&quot;,&quot;DISTRICT&quot;:&quot;MEDAK&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020099&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020100-SIDDIPET]</td>
+          <td class="col-duration">0.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020100
+{&quot;MICR&quot;:&quot;502002205&quot;,&quot;BRANCH&quot;:&quot;SIDDIPET&quot;,&quot;ADDRESS&quot;:&quot;RSFFICEMINURASIIETMEAK&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+918457223320&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;MEDAK&quot;,&quot;CENTRE&quot;:&quot;MEDAK&quot;,&quot;DISTRICT&quot;:&quot;MEDAK&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020100&quot;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bank.py::test_bank[SBIN0020101-ZAHEERABAD]</td>
+          <td class="col-duration">0.14</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>https://ifsc.razorpay.com/SBIN0020101
+{&quot;MICR&quot;:&quot;502002103&quot;,&quot;BRANCH&quot;:&quot;ZAHEERABAD&quot;,&quot;ADDRESS&quot;:&quot;ANROADBESDESTARHOTELZAHEERABADEDAK&quot;,&quot;STATE&quot;:&quot;ANDHRA PRADESH&quot;,&quot;CONTACT&quot;:&quot;+918451282007&quot;,&quot;UPI&quot;:true,&quot;RTGS&quot;:true,&quot;CITY&quot;:&quot;MEDAK&quot;,&quot;CENTRE&quot;:&quot;MEDAK&quot;,&quot;DISTRICT&quot;:&quot;MEDAK&quot;,&quot;NEFT&quot;:true,&quot;IMPS&quot;:true,&quot;SWIFT&quot;:&quot;&quot;,&quot;ISO3166&quot;:&quot;IN-AP&quot;,&quot;BANK&quot;:&quot;State Bank of India&quot;,&quot;BANKCODE&quot;:&quot;SBIN&quot;,&quot;IFSC&quot;:&quot;SBIN0020101&quot;}
+<br/></div></td></tr></tbody></table></body></html>
